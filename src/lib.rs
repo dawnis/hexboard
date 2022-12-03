@@ -1,28 +1,41 @@
+//! Hexboard
+//!
+//! Hexboard is a library for coordinating hexagonal tile tracking and display. 
 mod generation;
 
-use hexgametile::Rawr;
-use crate::generation::{map_ti, place_ti};
-use hexgametile::hexagon::HexagonalTile;
+use crate::generation::{map_ti, circular_ring};
 use hex2d::Coordinate;
 use image::GenericImageView;
 use nannou::prelude::*;
 use std::path;
 use std::collections::BTreeMap;
 
-/// Gameboard which implements a coordinate: tile map paradigm.
-#[derive(Default)]
-pub struct Board {
-    pub tiles: BTreeMap<Coordinate, HexagonalTile>
+/// Hexagonal tiles must implement `Rawr` which interacts with nannou for drawing and `terrain`
+/// which ...
+
+pub trait Hextile {
+    fn rawr(&self, c: Coordinate, d: &Draw, bounds: Rect);
+    fn from_pixel(scale: f32, pixel: image::Rgba<u8>) -> Self;
+    fn resize(&self, scale: f32) -> Self;
+    fn default() -> Self;
 }
 
-impl Board {
+/// Maps hexagonal tiles by their axial coordinate.
+#[derive(Default)]
+pub struct Board<T> {
+    pub tiles: BTreeMap<Coordinate, T>
+}
+
+impl<T: Hextile> Board<T> {
     /// Generates a ring of hexagons for testing.
-    pub fn new(hexagon_scaling: f32) -> Self {
+    pub fn new(hexagon_scaling: f32, radius: i32) -> Self {
         Board {
-            tiles: place_ti(hexagon_scaling),
+            tiles: circular_ring(hexagon_scaling, radius),
         }
     }
 
+    /// Generates a map from an image file where each pixel represents a tile. 
+    /// To Do: add pixel mapping to the API. 
     pub fn from_img(image_path: &path::Path, hexagon_scaling: f32) -> Self {
         let (width, height) = image::image_dimensions(image_path).unwrap();
 
@@ -44,16 +57,18 @@ impl Board {
         }
     }
 
+    /// Draws the board using nannou.
     pub fn make(&self, offset: (i32, i32), draw: &Draw, bounds: Rect) {
         for (loc, tile) in self.tiles.iter() {
             tile.rawr(*loc + Coordinate::new(offset.0, offset.1), draw, bounds);
         }
     }
 
+    /// Changes the zoom of the map. 
     pub fn update_scale(&mut self, new_scale: f32) -> Self {
         let mut update_game_tiles = BTreeMap::new();
         for (loc, tile) in self.tiles.iter() {
-            update_game_tiles.insert(*loc, HexagonalTile::new(new_scale, tile.terrain));
+            update_game_tiles.insert(*loc, tile.resize(new_scale));
         }
         Board { tiles: update_game_tiles}
     }

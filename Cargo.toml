@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-hexgametile = {path = "../hexgametile" }
 nannou = "0.18.1"
 palette = { version = "0.5", features = [ "named" ]}
 rand = "0.8.5"
