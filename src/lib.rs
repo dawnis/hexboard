@@ -4,6 +4,7 @@
 mod generation;
 
 use crate::generation::{map_ti, circular_ring};
+use hex2d::Spacing;
 use hex2d::Coordinate;
 use image::GenericImageView;
 use nannou::prelude::*;
@@ -14,7 +15,8 @@ use std::collections::BTreeMap;
 /// which ...
 
 pub trait Hextile {
-    fn rawr(&self, c: Coordinate, d: &Draw, bounds: Rect);
+    fn get_scale(&self) -> f32;
+    fn draw(&self, c: Coordinate, d: &Draw);
     fn from_pixel(scale: f32, pixel: image::Rgba<u8>) -> Self;
     fn resize(&self, scale: f32) -> Self;
     fn default() -> Self;
@@ -58,9 +60,14 @@ impl<T: Hextile> Board<T> {
     }
 
     /// Draws the board using nannou.
-    pub fn make(&self, offset: (i32, i32), draw: &Draw, bounds: Rect) {
+    pub fn display(&self, offset: (i32, i32), draw: &Draw, bounds: Rect) {
         for (loc, tile) in self.tiles.iter() {
-            tile.rawr(*loc + Coordinate::new(offset.0, offset.1), draw, bounds);
+            let offset_coord = *loc + Coordinate::new(offset.0, offset.1);
+            let hpc = offset_coord.to_pixel(Spacing::FlatTop(tile.get_scale()));
+            if bounds.left() < hpc.0 && bounds.right() > hpc.0 
+               && bounds.bottom() < hpc.1  && bounds.top() >  hpc.1 {
+                    tile.draw(offset_coord, draw);
+               }
         }
     }
 
