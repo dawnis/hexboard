@@ -11,9 +11,7 @@ use nannou::prelude::*;
 use std::path;
 use std::collections::BTreeMap;
 
-/// Hexagonal tiles must implement `Rawr` which interacts with nannou for drawing and `terrain`
-/// which ...
-
+/// Trait which must be implemented by tiles using this libary.
 pub trait Hextile {
     fn get_scale(&self) -> f32;
     fn draw(&self, c: Coordinate, d: &Draw);
@@ -22,23 +20,41 @@ pub trait Hextile {
     fn default() -> Self;
 }
 
+#[derive(Default, Clone, Copy)]
+struct ViewBoundary {
+    left: f32,
+    right: f32, 
+    top: f32, 
+    bottom: f32
+}
+
 /// Maps hexagonal tiles by their axial coordinate.
 #[derive(Default)]
 pub struct Board<T> {
-    pub tiles: BTreeMap<Coordinate, T>
+    pub tiles: BTreeMap<Coordinate, T>,
+    vb: ViewBoundary
 }
 
 impl<T: Hextile> Board<T> {
+
+    /// Determines if a coordinate is in the viewing window
+    fn is_viewable(&self, cd: Coordinate, scale: f32) -> bool {
+        let hpc = cd.to_pixel(Spacing::FlatTop(scale));
+        self.vb.left < hpc.0 && self.vb.right > hpc.0 
+           && self.vb.bottom < hpc.1  && self.vb.top >  hpc.1 
+    }
+
     /// Generates a ring of hexagons for testing.
-    pub fn new(hexagon_scaling: f32, radius: i32) -> Self {
+    pub fn new(hexagon_scaling: f32, radius: i32, window: (f32, f32, f32, f32)) -> Self {
         Board {
             tiles: circular_ring(hexagon_scaling, radius),
+            vb: ViewBoundary{left: window.0, right: window.1, 
+                top: window.2, bottom: window.3}
         }
     }
 
     /// Generates a map from an image file where each pixel represents a tile. 
-    /// To Do: add pixel mapping to the API. 
-    pub fn from_img(image_path: &path::Path, hexagon_scaling: f32) -> Self {
+    pub fn from_img(image_path: &path::Path, hexagon_scaling: f32, window: (f32, f32, f32, f32)) -> Self {
         let (width, height) = image::image_dimensions(image_path).unwrap();
 
         let mut cx: Vec<(Coordinate, image::Rgba<u8>)> = Vec::new();
@@ -56,17 +72,19 @@ impl<T: Hextile> Board<T> {
 
         Board {
             tiles: map_ti(cx, hexagon_scaling),
+            vb: ViewBoundary{left: window.0, 
+                                              right: window.1,
+                                              top: window.2,
+                                              bottom: window.3}
         }
     }
 
     /// Draws the board using nannou.
-    pub fn display(&self, offset: (i32, i32), draw: &Draw, bounds: Rect) {
+    pub fn display(&self, offset: (i32, i32), draw: &Draw) {
         for (loc, tile) in self.tiles.iter() {
-            let offset_coord = *loc + Coordinate::new(offset.0, offset.1);
-            let hpc = offset_coord.to_pixel(Spacing::FlatTop(tile.get_scale()));
-            if bounds.left() < hpc.0 && bounds.right() > hpc.0 
-               && bounds.bottom() < hpc.1  && bounds.top() >  hpc.1 {
-                    tile.draw(offset_coord, draw);
+            let oc = *loc + Coordinate::new(offset.0, offset.1);
+            if self.is_viewable(oc, tile.get_scale()) {
+                    tile.draw(oc, draw);
                }
         }
     }
@@ -77,6 +95,6 @@ impl<T: Hextile> Board<T> {
         for (loc, tile) in self.tiles.iter() {
             update_game_tiles.insert(*loc, tile.resize(new_scale));
         }
-        Board { tiles: update_game_tiles}
+        Board { tiles: update_game_tiles, vb: self.vb}
     }
 }
